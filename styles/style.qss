@@ -1,0 +1,90 @@
+/* styles/style.qss */
+
+/* 整体窗口背景色 */
+QMainWindow {
+    background-color: #2e2e2e;
+    font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+/* 表格样式 */
+QTableWidget {
+    background-color: #3c3c3c;
+    border: 1px solid #555555;
+    color: #f0f0f0;
+    font-size: 14px;
+}
+
+QTableWidget::item {
+    padding: 8px;
+}
+
+QHeaderView::section {
+    background-color: #444444;
+    color: #ffffff;
+    font-weight: bold;
+    padding: 8px;
+    border: 1px solid #555555;
+}
+
+QTableWidget::item:selected {
+    background-color: #5a5a5a;
+    color: #ffffff;
+}
+
+/* 按钮样式 */
+QPushButton {
+    background-color: #0066cc;
+    color: #ffffff;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+QPushButton:hover {
+    background-color: #005bb5;
+}
+
+/* 日期选择器样式 */
+QDateEdit {
+    font-size: 14px;
+    padding: 4px;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    background-color: #3c3c3c;
+    color: #f0f0f0;
+}
+
+QDateEdit::drop-down {
+    background-color: #3c3c3c;
+}
+
+/* 对话框按钮样式 */
+CourseDialog QPushButton {
+    background-color: #28a745;
+    color: #ffffff;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+CourseDialog QPushButton:hover {
+    background-color: #218838;
+}
+
+/* 输入框样式 */
+QLineEdit, QTimeEdit {
+    background-color: #4a4a4a;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 4px;
+    color: #f0f0f0;
+}
+
+/* 标签样式 */
+QLabel {
+    color: #f0f0f0;
+    font-size: 14px;
+}
