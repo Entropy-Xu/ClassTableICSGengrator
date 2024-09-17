@@ -7,7 +7,6 @@
 ============================
 """
 # main_window.py
-import sys
 import os
 import platform
 import json
@@ -16,7 +15,7 @@ from datetime import datetime, timedelta
 from PySide6.QtWidgets import (
     QMainWindow, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
     QPushButton, QMessageBox, QHBoxLayout, QHeaderView, QDateEdit, QLabel,
-    QCalendarWidget, QDialog, QFileDialog
+    QCalendarWidget, QDialog, QFileDialog, QLineEdit, QMenu, QInputDialog
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, QDate
@@ -131,6 +130,11 @@ class MainWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.setWordWrap(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.cellDoubleClicked.connect(self.cell_double_clicked)
+
+        # 启用自定义上下文菜单
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
 
         # 设置第一列（节次列）的宽度，并固定列宽
         self.table.setColumnWidth(0, 120)
@@ -147,7 +151,6 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 0, item)
             self.table.resizeRowToContents(row)
 
-        self.table.cellDoubleClicked.connect(self.add_course)
         layout.addWidget(self.table)
 
     def setup_generate_button(self, layout):
@@ -165,6 +168,146 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.open_folder_button)
         button_layout.addStretch()
         layout.addLayout(button_layout)
+
+    def show_context_menu(self, pos):
+        """显示右键上下文菜单"""
+        index = self.table.indexAt(pos)
+        row = index.row()
+        column = index.column()
+        if row < 0 or column < 0:
+            return  # 点击位置不在有效的单元格上
+
+        if column == 0:
+            return  # 不对节次列提供上下文菜单
+
+        item = self.table.item(row, column)
+        if item and item.text():
+            # 创建上下文菜单
+            menu = QMenu()
+            delete_action = QAction("删除课程", self)
+            delete_action.triggered.connect(lambda: self.delete_course(row, column))
+            menu.addAction(delete_action)
+            menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def delete_course(self, row, column):
+        """删除指定单元格中的课程"""
+        day = column - 1
+        period = row
+
+        # 获取单元格中的课程名称
+        item = self.table.item(row, column)
+        if not item:
+            return
+
+        # 如果单元格中有多个课程，需要用户选择要删除的课程
+        courses_in_cell = item.text().split('\n')
+        if len(courses_in_cell) > 1:
+            # 当单元格中有多个课程时，弹出选择对话框
+            selected_course, ok = QInputDialog.getItem(
+                self,
+                "选择课程",
+                "请选择要删除的课程：",
+                courses_in_cell,
+                editable=False
+            )
+            if not ok:
+                return
+        else:
+            selected_course = courses_in_cell[0]
+
+        # 提取课程名称
+        course_name = selected_course.split('(')[0]
+
+        # 从 courses 列表中删除对应的课程
+        self.courses = [
+            course for course in self.courses
+            if not (course['day'] == day and course['period'] == period and course['name'] == course_name)
+        ]
+
+        # 更新表格显示
+        self.refresh_table()
+
+    def cell_double_clicked(self, row, column):
+        if column == 0:
+            # 双击节次列，编辑时间范围
+            self.edit_period_time(row)
+        else:
+            # 双击课程单元格，添加或编辑课程
+            self.add_course(row, column)
+
+    def edit_period_time(self, row):
+        """编辑节次时间范围"""
+        period_str = self.periods[row]
+        # 提取当前的节次名称和时间范围
+        try:
+            period_name, time_range = period_str.split('\n')
+            start_time_str, end_time_str = time_range.split('-')
+        except ValueError:
+            QMessageBox.warning(self, "错误", "节次信息格式不正确，无法编辑时间。")
+            return
+
+        # 创建对话框
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"编辑{period_name}时间")
+        layout = QVBoxLayout()
+
+        # 开始时间输入
+        start_time_label = QLabel("开始时间 (HH:MM):")
+        start_time_edit = QLineEdit(start_time_str)
+        layout.addWidget(start_time_label)
+        layout.addWidget(start_time_edit)
+
+        # 结束时间输入
+        end_time_label = QLabel("结束时间 (HH:MM):")
+        end_time_edit = QLineEdit(end_time_str)
+        layout.addWidget(end_time_label)
+        layout.addWidget(end_time_edit)
+
+        # 按钮
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        dialog.setLayout(layout)
+
+        # 连接信号
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+
+        if dialog.exec():
+            new_start_time = start_time_edit.text().strip()
+            new_end_time = end_time_edit.text().strip()
+            # 验证时间格式
+            if self.validate_time_format(new_start_time) and self.validate_time_format(new_end_time):
+                # 更新 periods 列表
+                self.periods[row] = f"{period_name}\n{new_start_time}-{new_end_time}"
+                # 更新表格中的显示
+                item = QTableWidgetItem(self.periods[row])
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(row, 0, item)
+                # 更新课程中对应的时间
+                self.update_courses_time(row, new_start_time, new_end_time)
+            else:
+                QMessageBox.warning(self, "输入错误", "时间格式不正确，请输入 HH:MM 格式的时间。")
+
+    def validate_time_format(self, time_str):
+        """验证时间格式是否为 HH:MM"""
+        try:
+            datetime.strptime(time_str, "%H:%M")
+            return True
+        except ValueError:
+            return False
+
+    def update_courses_time(self, period_row, new_start_time, new_end_time):
+        """更新课程数据中对应节次的时间"""
+        for course in self.courses:
+            if course['period'] == period_row:
+                course['start_time'] = new_start_time
+                course['end_time'] = new_end_time
 
     def add_course(self, row, column):
         """添加课程到表格"""
@@ -357,7 +500,18 @@ class MainWindow(QMainWindow):
 
     def refresh_table(self):
         """刷新表格显示"""
-        self.table.clearContents()
+        # 仅清除课程数据，保留节次列（第一列）
+        for row in range(self.table.rowCount()):
+            for column in range(1, self.table.columnCount()):
+                self.table.setItem(row, column, None)
+
+        for row, period in enumerate(self.periods):
+            # 更新节次列的显示（防止时间修改后未更新）
+            item = QTableWidgetItem(period)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 0, item)
+
         for course in self.courses:
             row = course['period']
             column = course['day'] + 1

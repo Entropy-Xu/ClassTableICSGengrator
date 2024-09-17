@@ -7,6 +7,7 @@
 ============================
 """
 # course_dialog.py
+
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
 class CourseDialog(QDialog):
     def __init__(self, parent=None, day=None, period=None):
