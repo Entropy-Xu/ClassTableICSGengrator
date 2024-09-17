@@ -1,5 +1,4 @@
 /* styles/style.qss */
-
 /* 整体窗口背景色 */
 QMainWindow {
     background-color: #2e2e2e;
@@ -58,20 +57,6 @@ QDateEdit {
 
 QDateEdit::drop-down {
     background-color: #3c3c3c;
-}
-
-/* 对话框按钮样式 */
-CourseDialog QPushButton {
-    background-color: #28a745;
-    color: #ffffff;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-CourseDialog QPushButton:hover {
-    background-color: #218838;
 }
 
 /* 输入框样式 */

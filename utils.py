@@ -7,11 +7,8 @@
 ============================
 """
 # utils.py
-
 def format_weeks(weeks):
-    """
-    将周数列表格式化为范围字符串，例如 [1,2,3,5,6,7] -> "1-3,5-7"
-    """
+    """将周数列表格式化为范围字符串"""
     if not weeks:
         return ""
     weeks = sorted(set(weeks))
@@ -21,13 +18,34 @@ def format_weeks(weeks):
         if week == prev + 1:
             prev = week
         else:
-            if start == prev:
-                ranges.append(str(start))
-            else:
-                ranges.append(f"{start}-{prev}")
+            ranges.append(f"{start}-{prev}" if start != prev else str(start))
             start = prev = week
-    if start == prev:
-        ranges.append(str(start))
-    else:
-        ranges.append(f"{start}-{prev}")
+    ranges.append(f"{start}-{prev}" if start != prev else str(start))
     return ','.join(ranges)
+
+def parse_weeks_input(input_string):
+    """解析用户输入的重复周数字符串"""
+    weeks = set()
+    for part in input_string.split(','):
+        part = part.strip()
+        if '-' in part:
+            try:
+                start, end = map(int, part.split('-'))
+                weeks.update(range(start, end + 1))
+            except ValueError:
+                continue
+        else:
+            try:
+                weeks.add(int(part))
+            except ValueError:
+                continue
+    return sorted(weeks)
+
+def get_time_from_period(period_info):
+    """从节次信息中获取开始时间和结束时间"""
+    try:
+        period_times = period_info.split('\n')[1]
+        start_time_str, end_time_str = [t.strip() for t in period_times.split('-')]
+        return start_time_str, end_time_str
+    except IndexError:
+        return None, None

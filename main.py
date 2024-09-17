@@ -7,22 +7,18 @@
 ============================
 """
 # main.py
-
 import sys
 from PyQt6.QtWidgets import QApplication
 from main_window import MainWindow
 
 
 def main():
-    """
-    应用程序的入口点
-    """
+    """应用程序的入口点"""
     app = QApplication(sys.argv)
 
     # 加载 QSS 样式表
     with open("styles/style.qss", "r", encoding="utf-8") as f:
-        style = f.read()
-        app.setStyleSheet(style)
+        app.setStyleSheet(f.read())
 
     window = MainWindow()
     window.show()
@@ -31,3 +27,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
