@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QCalendarWidget, QDialog, QFileDialog, QLineEdit, QMenu, QInputDialog
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QItemSelectionModel
 
 from course_dialog import CourseDialog
 from utils import format_weeks, parse_weeks_input, get_time_from_period
@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("大学课表生成日历工具")
         self.resize(1400, 900)
         self.courses = []
+        self.copied_courses = []  # 用于存储复制的课程
         self.periods = self.get_periods()
         self.ics_file_path = None  # 保存生成的 ICS 文件路径
         self.init_ui()
@@ -151,6 +152,9 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 0, item)
             self.table.resizeRowToContents(row)
 
+        # 设置焦点策略，确保键盘事件可以被捕获
+        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
         layout.addWidget(self.table)
 
     def setup_generate_button(self, layout):
@@ -169,6 +173,116 @@ class MainWindow(QMainWindow):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
+    def keyPressEvent(self, event):
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_C:
+                self.copy_cells()
+            elif event.key() == Qt.Key.Key_V:
+                self.paste_cells()
+        elif event.key() == Qt.Key.Key_Delete:
+            self.delete_selected_courses()
+        else:
+            super().keyPressEvent(event)
+
+    def copy_cells(self):
+        """复制选定的单元格中的课程信息"""
+        selected_ranges = self.table.selectedRanges()
+        self.copied_courses = []
+
+        for selected_range in selected_ranges:
+            for row in range(selected_range.topRow(), selected_range.bottomRow() + 1):
+                for column in range(selected_range.leftColumn(), selected_range.rightColumn() + 1):
+                    if column == 0:
+                        continue  # 跳过节次列
+
+                    item = self.table.item(row, column)
+                    if item and item.text():
+                        # 找到对应的课程数据
+                        for course in self.courses:
+                            if course['day'] == column - 1 and course['period'] == row:
+                                self.copied_courses.append(course.copy())
+
+    def paste_cells(self):
+        """将复制的课程信息粘贴到选定的单元格"""
+        if not self.copied_courses:
+            return  # 没有复制的课程，直接返回
+
+        selected_ranges = self.table.selectedRanges()
+        if not selected_ranges:
+            return  # 没有选定的单元格，直接返回
+
+        # 假设只粘贴到第一个选定区域的左上角
+        target_row = selected_ranges[0].topRow()
+        target_column = selected_ranges[0].leftColumn()
+
+        if target_column == 0:
+            return  # 不能粘贴到节次列
+
+        # 计算偏移量
+        row_offset = target_row - self.copied_courses[0]['period']
+        column_offset = target_column - (self.copied_courses[0]['day'] + 1)
+
+        # 粘贴课程
+        new_courses = []
+        for course in self.copied_courses:
+            new_period = course['period'] + row_offset
+            new_day = course['day'] + column_offset
+
+            if new_period < 0 or new_period >= len(self.periods) or new_day < 0 or new_day > 6:
+                continue  # 超出表格范围，跳过
+
+            # 检查是否有重复的课程
+            if any(c for c in self.courses if c['day'] == new_day and c['period'] == new_period and c['name'] == course['name']):
+                continue  # 已存在相同课程，跳过
+
+            new_course = course.copy()
+            new_course['period'] = new_period
+            new_course['day'] = new_day
+
+            # 获取新的开始时间和结束时间
+            new_start_time, new_end_time = get_time_from_period(self.periods[new_period])
+            new_course['start_time'] = new_start_time
+            new_course['end_time'] = new_end_time
+
+            new_courses.append(new_course)
+
+        if new_courses:
+            self.courses.extend(new_courses)
+            self.refresh_table()
+
+    def delete_selected_courses(self):
+        """删除选定的单元格中的课程"""
+        selected_ranges = self.table.selectedRanges()
+        if not selected_ranges:
+            return  # 没有选定的单元格，直接返回
+
+        for selected_range in selected_ranges:
+            for row in range(selected_range.topRow(), selected_range.bottomRow() + 1):
+                for column in range(selected_range.leftColumn(), selected_range.rightColumn() + 1):
+                    if column == 0:
+                        continue  # 跳过节次列
+
+                    day = column - 1
+                    period = row
+
+                    # 获取单元格中的课程名称
+                    item = self.table.item(row, column)
+                    if not item:
+                        continue
+
+                    # 提取所有课程名称
+                    courses_in_cell = item.text().split('\n')
+                    course_names = [c.split('(')[0] for c in courses_in_cell]
+
+                    # 从 courses 列表中删除对应的课程
+                    self.courses = [
+                        course for course in self.courses
+                        if not (course['day'] == day and course['period'] == period and course['name'] in course_names)
+                    ]
+
+        # 更新表格显示
+        self.refresh_table()
+
     def show_context_menu(self, pos):
         """显示右键上下文菜单"""
         index = self.table.indexAt(pos)
@@ -177,17 +291,27 @@ class MainWindow(QMainWindow):
         if row < 0 or column < 0:
             return  # 点击位置不在有效的单元格上
 
-        if column == 0:
-            return  # 不对节次列提供上下文菜单
+        menu = QMenu()
 
-        item = self.table.item(row, column)
-        if item and item.text():
-            # 创建上下文菜单
-            menu = QMenu()
-            delete_action = QAction("删除课程", self)
-            delete_action.triggered.connect(lambda: self.delete_course(row, column))
-            menu.addAction(delete_action)
-            menu.exec(self.table.viewport().mapToGlobal(pos))
+        if column == 0:
+            pass  # 可以根据需要在节次列添加其他选项
+        else:
+            item = self.table.item(row, column)
+            if item and item.text():
+                delete_action = QAction("删除课程", self)
+                delete_action.triggered.connect(lambda: self.delete_course(row, column))
+                menu.addAction(delete_action)
+
+        # 添加复制和粘贴选项
+        copy_action = QAction("复制课程", self)
+        copy_action.triggered.connect(self.copy_cells)
+        menu.addAction(copy_action)
+
+        paste_action = QAction("粘贴课程", self)
+        paste_action.triggered.connect(self.paste_cells)
+        menu.addAction(paste_action)
+
+        menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def delete_course(self, row, column):
         """删除指定单元格中的课程"""
