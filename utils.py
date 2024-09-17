@@ -8,30 +8,36 @@
 """
 # utils.py
 def format_weeks(weeks):
-    """将周数列表格式化为范围字符串"""
+    """格式化周数列表为字符串，连续的周数用'-'表示"""
     if not weeks:
-        return ""
-    weeks = sorted(set(weeks))
+        return ''
+    weeks = sorted(weeks)
     ranges = []
     start = prev = weeks[0]
     for week in weeks[1:]:
         if week == prev + 1:
             prev = week
         else:
-            ranges.append(f"{start}-{prev}" if start != prev else str(start))
+            if start == prev:
+                ranges.append(f"{start}")
+            else:
+                ranges.append(f"{start}-{prev}")
             start = prev = week
-    ranges.append(f"{start}-{prev}" if start != prev else str(start))
+    if start == prev:
+        ranges.append(f"{start}")
+    else:
+        ranges.append(f"{start}-{prev}")
     return ','.join(ranges)
 
-def parse_weeks_input(input_string):
-    """解析用户输入的重复周数字符串"""
+def parse_weeks_input(weeks_input):
+    """解析周数输入字符串，返回周数列表"""
     weeks = set()
-    for part in input_string.split(','):
+    for part in weeks_input.split(','):
         part = part.strip()
         if '-' in part:
             try:
-                start, end = map(int, part.split('-'))
-                weeks.update(range(start, end + 1))
+                start, end = part.split('-')
+                weeks.update(range(int(start), int(end) + 1))
             except ValueError:
                 continue
         else:
@@ -41,11 +47,11 @@ def parse_weeks_input(input_string):
                 continue
     return sorted(weeks)
 
-def get_time_from_period(period_info):
-    """从节次信息中获取开始时间和结束时间"""
+def get_time_from_period(period_str):
+    """根据节次信息获取开始时间和结束时间"""
     try:
-        period_times = period_info.split('\n')[1]
-        start_time_str, end_time_str = [t.strip() for t in period_times.split('-')]
-        return start_time_str, end_time_str
+        times = period_str.split('\n')[1]
+        start_time_str, end_time_str = times.split('-')
+        return start_time_str.strip(), end_time_str.strip()
     except IndexError:
-        return None, None
+        return "08:00", "09:00"  # 默认时间

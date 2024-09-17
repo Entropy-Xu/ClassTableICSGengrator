@@ -7,17 +7,23 @@
 ============================
 """
 # main_window.py
-from PyQt6.QtWidgets import (
+import sys
+import os
+import platform
+import json
+from datetime import datetime, timedelta
+
+from PySide6.QtWidgets import (
     QMainWindow, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
-    QPushButton, QMessageBox, QHBoxLayout, QHeaderView, QDateEdit, QMenu, QLabel, QCalendarWidget, QDialog
+    QPushButton, QMessageBox, QHBoxLayout, QHeaderView, QDateEdit, QLabel,
+    QCalendarWidget, QDialog, QFileDialog
 )
-from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QDate
+from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, QDate
+
 from course_dialog import CourseDialog
 from utils import format_weeks, parse_weeks_input, get_time_from_period
 from icalendar import Calendar, Event, Alarm
-from datetime import datetime, timedelta
-import json
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +35,7 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self.courses = []
         self.periods = self.get_periods()
+        self.ics_file_path = None  # 保存生成的 ICS 文件路径
         self.init_ui()
 
     @staticmethod
@@ -87,7 +94,7 @@ class MainWindow(QMainWindow):
         self.first_day_edit = QDateEdit()
         self.first_day_edit.setDisplayFormat("yyyy-MM-dd")
         self.first_day_edit.setCalendarPopup(True)
-        self.first_day_edit.setDate(QDate(2024, 9, 2))
+        self.first_day_edit.setDate(QDate.currentDate())
         self.first_day_edit.setMinimumWidth(120)
         self.calendar_button = QPushButton("选择日期")
         self.calendar_button.clicked.connect(self.show_calendar_dialog)
@@ -144,12 +151,18 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.table)
 
     def setup_generate_button(self, layout):
-        """设置生成 ICS 按钮"""
+        """设置生成 ICS 按钮和打开文件夹按钮"""
         self.ics_button = QPushButton("生成 ICS 文件")
         self.ics_button.clicked.connect(self.generate_ics)
+
+        self.open_folder_button = QPushButton("打开文件夹")
+        self.open_folder_button.clicked.connect(self.open_folder)
+        self.open_folder_button.setEnabled(False)  # 初始状态不可用
+
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.ics_button)
+        button_layout.addWidget(self.open_folder_button)
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
@@ -172,7 +185,7 @@ class MainWindow(QMainWindow):
 
             task_weeks = parse_weeks_input(data['weeks'])
             if not task_weeks:
-                QMessageBox.warning(self, "输入错误", "重复周数格式不正确或为空。")
+                QMessageBox.warning(self, "输入错误", "周数格式不正确或为空。")
                 return
 
             if self.is_course_duplicate(day, period, data['name']):
@@ -232,7 +245,7 @@ class MainWindow(QMainWindow):
         cal.add('prodid', '-//大学课表生成工具//')
         cal.add('version', '2.0')
 
-        semester_start = self.first_day_edit.date().toPyDate()
+        semester_start = self.first_day_edit.date().toPython()
 
         for course in self.courses:
             self.add_course_events(cal, course, semester_start)
@@ -244,6 +257,8 @@ class MainWindow(QMainWindow):
         task_weeks = course['weeks']
         day = course['day']
         start_time, end_time = self.get_course_times(course)
+        if start_time is None or end_time is None:
+            return
 
         for week in task_weeks:
             event_date = semester_start + timedelta(weeks=week - 1, days=day)
@@ -279,11 +294,45 @@ class MainWindow(QMainWindow):
     def save_ics_file(self, cal):
         """保存 ICS 文件"""
         try:
-            with open('course_schedule.ics', 'wb') as f:
+            # 使用 QFileDialog 让用户选择保存位置
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "保存 ICS 文件",
+                os.path.expanduser("~/course_schedule.ics"),
+                "ICS Files (*.ics)"
+            )
+            if not file_path:
+                return  # 用户取消保存
+
+            with open(file_path, 'wb') as f:
                 f.write(cal.to_ical())
-            QMessageBox.information(self, "成功", "ICS 文件已生成！路径：course_schedule.ics")
+
+            QMessageBox.information(self, "成功", f"ICS 文件已生成！路径：{file_path}")
+
+            # 保存成功后，更新保存的文件路径
+            self.ics_file_path = file_path
+
+            # 启用“打开文件夹”按钮
+            self.open_folder_button.setEnabled(True)
+
         except Exception as e:
             QMessageBox.warning(self, "错误", f"生成 ICS 文件失败: {e}")
+
+    def open_folder(self):
+        """打开包含 ICS 文件的文件夹"""
+        if self.ics_file_path:
+            file_dir = os.path.dirname(self.ics_file_path)
+            try:
+                if platform.system() == "Windows":
+                    os.startfile(file_dir)
+                elif platform.system() == "Darwin":  # macOS
+                    os.system(f'open "{file_dir}"')
+                else:  # Linux 和其他系统
+                    os.system(f'xdg-open "{file_dir}"')
+            except Exception as e:
+                QMessageBox.warning(self, "错误", f"无法打开文件夹: {e}")
+        else:
+            QMessageBox.warning(self, "错误", "请先生成 ICS 文件。")
 
     def save_courses_to_json(self):
         """将课程信息保存到 JSON 文件"""

@@ -7,47 +7,55 @@
 ============================
 """
 # course_dialog.py
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton
-)
-from PyQt6.QtCore import Qt
-
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
 class CourseDialog(QDialog):
-    """课程添加和编辑对话框"""
-
     def __init__(self, parent=None, day=None, period=None):
         super().__init__(parent)
         self.setWindowTitle("添加课程")
+        self.resize(400, 300)
+
         self.day = day
         self.period = period
-        self.init_ui()
 
-    def init_ui(self):
-        """初始化对话框界面"""
         layout = QVBoxLayout()
 
-        self.name_edit = self.create_line_edit("课程名称:", layout)
-        self.location_edit = self.create_line_edit("地点:", layout)
-        self.weeks_edit = self.create_line_edit("重复周数（例如：1,3-5,9）:", layout)
+        # 课程名称
+        name_label = QLabel("课程名称:")
+        self.name_edit = QLineEdit()
+        layout.addWidget(name_label)
+        layout.addWidget(self.name_edit)
 
-        save_button = QPushButton("保存")
-        save_button.clicked.connect(self.accept)
-        layout.addWidget(save_button)
+        # 上课地点
+        location_label = QLabel("上课地点:")
+        self.location_edit = QLineEdit()
+        layout.addWidget(location_label)
+        layout.addWidget(self.location_edit)
+
+        # 重复周数
+        weeks_label = QLabel("周数 (如: 1-16 或 1,3,5):")
+        self.weeks_edit = QLineEdit()
+        layout.addWidget(weeks_label)
+        layout.addWidget(self.weeks_edit)
+
+        # 按钮
+        button_layout = QHBoxLayout()
+        self.ok_button = QPushButton("确定")
+        self.cancel_button = QPushButton("取消")
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+
         self.setLayout(layout)
 
-    @staticmethod
-    def create_line_edit(label_text, layout):
-        """创建输入框"""
-        label = QLabel(label_text)
-        edit = QLineEdit()
-        layout.addWidget(label)
-        layout.addWidget(edit)
-        return edit
+        # 连接信号
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
 
     def get_data(self):
-        """获取用户输入的数据"""
         return {
             'name': self.name_edit.text(),
             'location': self.location_edit.text(),
-            'weeks': self.weeks_edit.text()
+            'weeks': self.weeks_edit.text(),
+            'start_time': None,
+            'end_time': None
         }
